@@ -4,7 +4,7 @@ use std::io::{Error, ErrorKind};
 #[derive(Debug)]
 pub struct IndivualInformation {
     pub bakong_account_identifier: String,
-    pub individual_account_information: Option<String>,
+    pub account_information: Option<String>,
     pub acquiring_bank: Option<String>,
 }
 
@@ -17,7 +17,7 @@ impl IndivualInformation {
         match sub_tag {
             SubTags::BakongAccountIdentifier => self.bakong_account_identifier = value.to_string(),
             SubTags::IndividualAccountInformation => {
-                self.individual_account_information = Some(value.to_string())
+                self.account_information = Some(value.to_string())
             }
             SubTags::AcquiringBank => self.acquiring_bank = Some(value.to_string()),
             _ => {}
@@ -27,7 +27,7 @@ impl IndivualInformation {
     pub fn from_string(value: &str) -> std::io::Result<Self> {
         let mut indiv_info = IndivualInformation {
             bakong_account_identifier: String::new(),
-            individual_account_information: None,
+            account_information: None,
             acquiring_bank: None,
         };
 

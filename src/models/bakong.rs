@@ -10,11 +10,11 @@ use std::io::{Error, ErrorKind};
 
 #[derive(Debug)]
 pub struct Bakong {
-    pub qr_type: PointOfInitialMethod,
+    pub point_of_initial_method: PointOfInitialMethod,
     pub merchant_type: MerchantType,
     pub merchant_category_code: Option<String>,
     pub merchant_name: String,
-    pub merchant_city: Option<MerchantCity>,
+    pub merchant_city: MerchantCity,
     pub additional_data_template: Option<AdditionalDataTemplate>,
     pub unionpay_merchant: Option<String>,
     pub merchant_information_language_template: Option<MerchantInformationLanguageTemplate>,
@@ -34,9 +34,9 @@ impl Bakong {
         let mut is_static: Option<bool> = None;
         let mut currency: Option<TransactionCurrency> = None;
         let mut amount_raw: Option<String> = None;
-        let mut merchant_category_code = None;
-        let mut merchant_name = String::new();
-        let mut merchant_city: Option<MerchantCity> = None;
+        let mut merchant_category_code: Option<String> = None;
+        let mut merchant_name: Option<String> = None;
+        let mut merchant_city: MerchantCity = MerchantCity::PhnomPenh;
         let mut additional_data_template: Option<AdditionalDataTemplate> = None;
         let mut additional_data_field: Option<AdditionalDataField> = None;
         let mut unionpay_merchant: Option<String> = None;
@@ -85,13 +85,22 @@ impl Bakong {
                     amount_raw = Some(value.to_string());
                 }
                 Tags::MerchantName => {
-                    merchant_name = value.to_string();
+                    merchant_name = Some(value.to_string());
                 }
                 Tags::MerchantCategoryCode => {
-                    merchant_category_code = Some(value.to_string());
+                    if value.len() == 4 {
+                        merchant_category_code = Some(value.into());
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Invalid data field Merchant Category Code",
+                        ));
+                    }
                 }
                 Tags::MerchantCity => {
-                    merchant_city = MerchantCity::from_string(value);
+                    if let Some(candidate) = MerchantCity::from_string(value) {
+                        merchant_city = candidate;
+                    }
                 }
                 Tags::AdditionalDataTemplate => {
                     additional_data_template = Some(AdditionalDataTemplate::from_string(value)?);
@@ -162,8 +171,12 @@ impl Bakong {
             )
         })?;
 
+        let merchant_name = merchant_name.ok_or_else(|| {
+            Error::new(ErrorKind::NotFound, "The field Merchant Name is needed!!!.")
+        })?;
+
         Ok(Bakong {
-            qr_type,
+            point_of_initial_method: qr_type,
             merchant_type,
             merchant_category_code,
             merchant_name,
@@ -185,7 +198,7 @@ impl Bakong {
         write_tlv!(&mut qr_code, (Tags::PayloadFormatIndicator.code(), "01"))
             .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-        let poi_value = self.qr_type.value();
+        let poi_value = self.point_of_initial_method.value();
         Tags::PointOfInitialMethod
             .validate_length(poi_value)
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -203,9 +216,12 @@ impl Bakong {
                 (Tags::MerchantCategoryCode.code(), merchant_category_code)
             )
             .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        } else {
+            write_tlv!(&mut qr_code, (Tags::MerchantCategoryCode.code(), "5999"))
+                .map_err(|e| Error::new(ErrorKind::Other, e))?;
         }
 
-        self.qr_type.write_currency(&mut qr_code)?;
+        self.point_of_initial_method.write_currency(&mut qr_code)?;
 
         if let Some(unionpay) = &self.unionpay_merchant {
             Tags::UnionPayMerchant
@@ -218,7 +234,7 @@ impl Bakong {
         if let PointOfInitialMethod::Dynamic {
             additional_data_field,
             amount,
-        } = &self.qr_type
+        } = &self.point_of_initial_method
         {
             dynamic_additional = additional_data_field.as_ref();
             amount.write_amount(&mut temp_value, &mut qr_code)?;
@@ -240,11 +256,7 @@ impl Bakong {
         )
         .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-        let merchant_city = self
-            .merchant_city
-            .as_ref()
-            .unwrap_or(&MerchantCity::PhnomPenh);
-        let city_value = merchant_city.city();
+        let city_value = &self.merchant_city.city();
         Tags::MerchantCity
             .validate_length(city_value)
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;

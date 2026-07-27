@@ -37,7 +37,7 @@ impl TLV for MerchantType {
                 )
                 .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
-                if let Some(info) = &indivual_information.individual_account_information {
+                if let Some(info) = &indivual_information.account_information {
                     SubTags::IndividualAccountInformation
                         .validate_length(info)
                         .map_err(|msg| Error::new(ErrorKind::InvalidData, msg))?;
